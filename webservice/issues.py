@@ -3,6 +3,8 @@ import os
 
 import gidgethub.routing
 
+from gidgethub import apps
+
 
 router = gidgethub.routing.Router()
 from slack import WebClient
@@ -33,3 +35,19 @@ async def issue_labeled(event, gh, *args, **kwargs):
                 assert e.response[
                     "error"
                 ]  # str like 'invalid_auth', 'channel_not_found'
+
+            installation_id = event.data["installation"]["id"]
+            installation_access_token = await apps.get_installation_access_token(
+                gh,
+                installation_id=installation_id,
+                app_id=os.environ.get("GH_APP_ID"),
+                private_key=os.environ.get("GH_PRIVATE_KEY"),
+            )
+
+            response = await gh.post(
+                event.data["issue"]["comments_url"],
+                data={
+                    "body": "Thanks for sharing this event with PyLadies!! We've shared this in PyLadies Slack #events channel."
+                },
+                oauth_token=installation_access_token["token"],
+            )
