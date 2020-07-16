@@ -21,13 +21,16 @@ async def issue_labeled(event, gh, *args, **kwargs):
             issue_title = event.data["issue"]["title"]
             issue_body = event.data["issue"]["body"]
             html_url = event.data["issue"]["html_url"]
+            author = event.data["issue"]["user"]["login"]
+            issue_number = event.data["issue"]["number"]
+            repo_full_name = event.data["repository"]["full_name"]
 
             # post it to Slack "events" channel
             slack_client = WebClient(token=os.getenv("SLACK_API_KEY"))
             try:
                 response = slack_client.chat_postMessage(
                     channel="#events",
-                    text=f"*New Event posted*\n\n*Title*: {issue_title}\n{issue_body}\n\n_source:_ _{html_url}_ ",
+                    text=f"*New Event posted* by *{author}*\n\n*Title*: {issue_title}\n{issue_body}\n\n_source:_ _{html_url}_ ",
                 )
             except SlackApiError as e:
                 # You will get a SlackApiError if "ok" is False
@@ -44,10 +47,26 @@ async def issue_labeled(event, gh, *args, **kwargs):
                 private_key=os.environ.get("GH_PRIVATE_KEY"),
             )
 
+            # react with "hooray"
+            await gh.post(
+                f"/repos/{repo_full_name}/issues/{issue_number}/reactions",
+                data={"content": "hooray"},
+                accept="application/vnd.github.squirrel-girl-preview+json",
+                oauth_token=installation_access_token["token"],
+            )
+
+            # say thanks
             response = await gh.post(
                 event.data["issue"]["comments_url"],
                 data={
                     "body": "Thanks for sharing this event with PyLadies!! We've shared this in PyLadies Slack #events channel."
                 },
+                oauth_token=installation_access_token["token"],
+            )
+
+            # close the issue
+            await gh.patch(
+                f"/repos/{repo_full_name}/issues/{issue_number}",
+                data={"state": "closed"},
                 oauth_token=installation_access_token["token"],
             )
